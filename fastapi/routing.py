@@ -46,6 +46,14 @@ from fastapi._compat import (
     Undefined,
     lenient_issubclass,
 )
+from fastapi._msgspec import (
+    decode_json_body,
+    encode_struct,
+    maybe_raise_msgspec_request_validation_error,
+    msgspec,
+    serialize_struct_response,
+    should_dump_json,
+)
 from fastapi.datastructures import Default, DefaultPlaceholder
 from fastapi.dependencies.models import Dependant
 from fastapi.dependencies.utils import (
@@ -305,6 +313,13 @@ async def serialize_response(
     dump_json: bool = False,
 ) -> Any:
     if field:
+        handled, result = serialize_struct_response(
+            field=field,
+            response_content=response_content,
+        )
+        if handled:
+            return result
+
         if is_coroutine:
             value, errors = field.validate(response_content, {}, loc=("response",))
         else:
@@ -415,6 +430,7 @@ def get_request_handler(
             endpoint_ctx["path"] = f"{request.method} {mount_path}{dependant.path}"
 
         # Read body and auto-close files
+        body_bytes: bytes | None = None
         try:
             body: Any = None
             if body_field:
@@ -424,18 +440,12 @@ def get_request_handler(
                 else:
                     body_bytes = await request.body()
                     if body_bytes:
-                        json_body: Any = Undefined
-                        content_type_value = request.headers.get("content-type")
-                        if not content_type_value:
-                            if not actual_strict_content_type:
-                                json_body = await request.json()
-                        else:
-                            message = email.message.Message()
-                            message["content-type"] = content_type_value
-                            if message.get_content_maintype() == "application":
-                                subtype = message.get_content_subtype()
-                                if subtype == "json" or subtype.endswith("+json"):
-                                    json_body = await request.json()
+                        json_body = await decode_json_body(
+                            request,
+                            body_bytes,
+                            body_field,
+                            actual_strict_content_type,
+                        )
                         if json_body != Undefined:
                             body = json_body
                         else:
@@ -459,6 +469,11 @@ def get_request_handler(
             # If a middleware raises an HTTPException, it should be raised again
             raise
         except Exception as e:
+            maybe_raise_msgspec_request_validation_error(
+                e,
+                body=body_bytes,
+                endpoint_ctx=endpoint_ctx,
+            )
             http_error = HTTPException(
                 status_code=400, detail="There was an error parsing the body"
             )
@@ -700,38 +715,47 @@ def get_request_handler(
                     response_args = _build_response_args(
                         status_code=status_code, solved_result=solved_result
                     )
-                    # Use the fast path (dump_json) when no custom response
-                    # class was set and a response field with a TypeAdapter
-                    # exists. Serializes directly to JSON bytes via Pydantic's
-                    # Rust core, skipping the intermediate Python dict +
-                    # json.dumps() step.
-                    use_dump_json = response_field is not None and isinstance(
-                        response_class, DefaultPlaceholder
-                    )
-                    content = await serialize_response(
-                        field=response_field,
-                        response_content=raw_response,
-                        include=response_model_include,
-                        exclude=response_model_exclude,
-                        by_alias=response_model_by_alias,
-                        exclude_unset=response_model_exclude_unset,
-                        exclude_defaults=response_model_exclude_defaults,
-                        exclude_none=response_model_exclude_none,
-                        is_coroutine=is_coroutine,
-                        endpoint_ctx=endpoint_ctx,
-                        dump_json=use_dump_json,
-                    )
-                    if use_dump_json:
+                    # Direct msgspec fast path for top-level Struct returns.
+                    if msgspec is not None and isinstance(
+                        raw_response, msgspec.Struct
+                    ):
                         response = Response(
-                            content=content,
+                            content=encode_struct(raw_response, type(raw_response)),
                             media_type="application/json",
                             **response_args,
                         )
                     else:
-                        response = actual_response_class(content, **response_args)
-                    if not is_body_allowed_for_status_code(response.status_code):
-                        response.body = b""
-                    response.headers.raw.extend(solved_result.response.headers.raw)
+                        # Use the fast path (dump_json) when no custom response
+                        # class was set and a response field with a TypeAdapter
+                        # exists. For msgspec response models the normal response
+                        # class is bypassed and msgspec.json.encode is used directly.
+                        use_dump_json = should_dump_json(
+                            response_field=response_field, response_class=response_class
+                        )
+                        content = await serialize_response(
+                            field=response_field,
+                            response_content=raw_response,
+                            include=response_model_include,
+                            exclude=response_model_exclude,
+                            by_alias=response_model_by_alias,
+                            exclude_unset=response_model_exclude_unset,
+                            exclude_defaults=response_model_exclude_defaults,
+                            exclude_none=response_model_exclude_none,
+                            is_coroutine=is_coroutine,
+                            endpoint_ctx=endpoint_ctx,
+                            dump_json=use_dump_json,
+                        )
+                        if use_dump_json:
+                            response = Response(
+                                content=content,
+                                media_type="application/json",
+                                **response_args,
+                            )
+                        else:
+                            response = actual_response_class(content, **response_args)
+                        if not is_body_allowed_for_status_code(response.status_code):
+                            response.body = b""
+                        response.headers.raw.extend(solved_result.response.headers.raw)
         if errors:
             validation_error = RequestValidationError(
                 errors, body=body, endpoint_ctx=endpoint_ctx

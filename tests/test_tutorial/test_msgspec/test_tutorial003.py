@@ -1,0 +1,29 @@
+import importlib
+
+import pytest
+from fastapi.testclient import TestClient
+
+from tests.utils import needs_py310
+
+
+@pytest.fixture(
+    name="client",
+    params=[
+        pytest.param("tutorial003_py310", marks=needs_py310),
+    ],
+)
+def get_client(request: pytest.FixtureRequest) -> TestClient:
+    mod = importlib.import_module(f"docs_src.msgspec.{request.param}")
+
+    client = TestClient(mod.app)
+    client.headers.clear()
+    return client
+
+
+def test_get_items(client: TestClient) -> None:
+    response = client.get("/items/")
+    assert response.status_code == 200, response.text
+    assert response.json() == [
+        {"name": "Foo", "price": 3.0, "description": None},
+        {"name": "Bar", "price": 4.0, "description": None},
+    ]

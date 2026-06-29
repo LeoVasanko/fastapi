@@ -1,6 +1,7 @@
 import importlib
 from typing import Any, Protocol, cast
 
+from fastapi._msgspec import MsgspecJSONResponse as MsgspecJSONResponse
 from fastapi.exceptions import FastAPIDeprecationWarning
 from fastapi.sse import EventSourceResponse as EventSourceResponse  # noqa
 from starlette.responses import FileResponse as FileResponse  # noqa

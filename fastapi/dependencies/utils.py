@@ -49,6 +49,7 @@ from fastapi._compat import (
     serialize_sequence_value,
     value_is_sequence,
 )
+from fastapi._msgspec import is_struct_body_field
 from fastapi.background import BackgroundTasks
 from fastapi.concurrency import (
     asynccontextmanager,
@@ -977,6 +978,9 @@ async def request_body_to_args(
         body_to_process = await _extract_form_body(fields_to_extract, received_body)
 
     if single_not_embedded_field:
+        # Skip Pydantic validation if the body field is handled by msgspec.
+        if is_struct_body_field(first_field):
+            return {first_field.name: body_to_process}, []
         loc: tuple[str, ...] = ("body",)
         v_, errors_ = _validate_value_with_model_field(
             field=first_field, value=body_to_process, values=values, loc=loc

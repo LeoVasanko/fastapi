@@ -13,6 +13,7 @@ from fastapi._compat import (
     Undefined,
     annotation_is_pydantic_v1,
 )
+from fastapi._msgspec import create_struct_model_field
 from fastapi.datastructures import DefaultPlaceholder, DefaultType
 from fastapi.exceptions import FastAPIDeprecationWarning, PydanticV1NotSupportedError
 from pydantic.fields import FieldInfo
@@ -69,6 +70,11 @@ def create_model_field(
             f" Please update the response model {type_!r}."
         )
     field_info = field_info or FieldInfo(annotation=type_, default=default, alias=alias)
+    msgspec_field = create_struct_model_field(
+        name=name, field_info=field_info, mode=mode, original_annotation=type_
+    )
+    if msgspec_field is not None:
+        return msgspec_field
     try:
         return v2.ModelField(mode=mode, name=name, field_info=field_info)
     except PydanticSchemaGenerationError:

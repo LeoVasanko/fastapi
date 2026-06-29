@@ -16,6 +16,12 @@ from typing import (
 )
 
 from fastapi._compat import lenient_issubclass, shared
+from fastapi._msgspec import (
+    generate_msgspec_definitions,
+    get_struct_annotation,
+    is_struct_type,
+    msgspec,
+)
 from fastapi.openapi.constants import REF_TEMPLATE
 from fastapi.types import IncEx, ModelNameMap, UnionType
 from pydantic import BaseModel, ConfigDict, Field, TypeAdapter, create_model
@@ -307,6 +313,7 @@ def get_definitions(
             mode="validation",
         )
         for model in flat_validation_models
+        if not is_struct_type(model)
     ]
     flat_serialization_model_fields = [
         ModelField(
@@ -315,6 +322,7 @@ def get_definitions(
             mode="serialization",
         )
         for model in flat_serialization_models
+        if not is_struct_type(model)
     ]
     flat_model_fields = flat_validation_model_fields + flat_serialization_model_fields
     input_types = {f.field_info.annotation for f in fields}
@@ -338,6 +346,15 @@ def get_definitions(
         if "description" in item_def:
             item_description = cast(str, item_def["description"]).split("\f")[0]
             item_def["description"] = item_description
+
+    # Generate schemas for msgspec annotations and merge them into the Pydantic output.
+    if msgspec is not None:
+        for name, def_schema in generate_msgspec_definitions(
+            fields, field_mapping
+        ).items():
+            if name not in cast(dict[str, dict[str, Any]], definitions):
+                cast(dict[str, dict[str, Any]], definitions)[name] = def_schema
+
     # definitions: dict[DefsRef, dict[str, Any]]
     # but mypy complains about general str in other places that are not declared as
     # DefsRef, although DefsRef is just str:
@@ -418,7 +435,7 @@ def get_cached_model_fields(model: type[BaseModel]) -> list[ModelField]:
 # Duplicate of several schema functions from Pydantic v1 to make them compatible with
 # Pydantic v2 and allow mixing the models
 
-TypeModelOrEnum = type["BaseModel"] | type[Enum]
+TypeModelOrEnum = type["BaseModel"] | type[Enum] | type["msgspec.Struct"]
 TypeModelSet = set[TypeModelOrEnum]
 
 
@@ -454,6 +471,8 @@ def get_flat_models_from_annotation(
                     known_models.add(arg)  # type: ignore[arg-type]
                     if lenient_issubclass(arg, BaseModel):
                         get_flat_models_from_model(arg, known_models=known_models)
+            elif is_struct_type(arg) and arg not in known_models:
+                known_models.add(arg)
             else:
                 get_flat_models_from_annotation(arg, known_models=known_models)
     return known_models
@@ -462,6 +481,10 @@ def get_flat_models_from_annotation(
 def get_flat_models_from_field(
     field: ModelField, known_models: TypeModelSet
 ) -> TypeModelSet:
+    msgspec_annotation = get_struct_annotation(field)
+    if msgspec_annotation is not None:
+        get_flat_models_from_annotation(msgspec_annotation, known_models=known_models)
+        return known_models
     field_type = field.field_info.annotation
     if lenient_issubclass(field_type, BaseModel):
         if field_type in known_models:

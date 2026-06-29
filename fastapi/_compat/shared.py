@@ -14,6 +14,7 @@ from typing import (
     get_origin,
 )
 
+from fastapi._msgspec import is_struct_type
 from fastapi.types import UnionType
 from pydantic import BaseModel
 from pydantic.version import VERSION as PYDANTIC_VERSION
@@ -82,6 +83,7 @@ def _annotation_is_complex(annotation: type[Any] | None) -> bool:
         lenient_issubclass(annotation, (BaseModel, Mapping, UploadFile))
         or _annotation_is_sequence(annotation)
         or is_dataclass(annotation)
+        or is_struct_type(annotation)
     )
 
 

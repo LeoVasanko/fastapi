@@ -1,3 +1,5 @@
+__tracebackhide__ = "until"
+
 import contextlib
 import copy
 import email.message

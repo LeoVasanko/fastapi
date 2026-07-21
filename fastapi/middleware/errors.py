@@ -15,29 +15,26 @@ from starlette.types import (
     Send,
 )
 
-INGRESS = (
-    "This page is shown for your guidance because the application is "
-    "running in debug mode and has crashed handling this request."
-)
+INGRESS = """This page is shown for your guidance because the application is \
+running in debug mode and has crashed handling this request."""
 
 
 class ServerErrorMiddleware:
     """Return 500 responses when a server error occurs, formatted with TraceRite.
 
-    If 'debug' is set, traceback responses are returned, otherwise the
-    designated 'handler' is called of finally an Internal Server Error
-    message is returned.
+    If 'debug' is set, traceback responses are returned, otherwise any designated
+    'handler' returns the response, or an Internal Server Error message is returned.
 
-    This middleware wraps everything else, so that unhandled exceptions
-    anywhere in the stack always result in an appropriate 500 response.
+    If `json` is set, we respect `accept: application/json` to respond in JSON.
     """
 
     def __init__(
         self,
         app: ASGIApp,
         handler: HTTPExceptionHandler | None = None,
+        *,
         debug: bool = False,
-        json: bool = False,
+        json: bool = True,
     ) -> None:
         self.app = app
         self.handler = handler
@@ -45,6 +42,7 @@ class ServerErrorMiddleware:
         self.json = json
 
     async def __call__(self, scope: Scope, receive: Receive, send: Send) -> None:
+        # This function is directly from Starlette
         if scope["type"] != "http":
             await self.app(scope, receive, send)
             return
@@ -69,13 +67,11 @@ class ServerErrorMiddleware:
             elif is_async_callable(self.handler):
                 response = await self.handler(request, exc)  # ty: ignore[invalid-assignment]
             else:
-                response = await run_in_threadpool(self.handler, request, exc)  # type: ignore[arg-type]  # ty: ignore[invalid-assignment]
+                response = await run_in_threadpool(self.handler, request, exc)  # type: ignore
 
             if not response_started:
                 await response(scope, receive, send)
 
-            # Always raise the exception, so servers can log the error and
-            # test clients can optionally raise it within the test case
             raise exc
 
     def generate_html(self, exc: Exception, request: Request | None = None) -> str:

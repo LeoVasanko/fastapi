@@ -1,5 +1,7 @@
 from fastapi import FastAPI
 from fastapi.middleware.errors import ServerErrorMiddleware
+from fastapi.requests import Request
+from fastapi.responses import JSONResponse
 from fastapi.testclient import TestClient
 
 
@@ -66,3 +68,20 @@ def test_error_json_response():
     response = client.get("/", headers={"accept": "application/json"})
     assert response.status_code == 500, response.text
     assert response.json() == {"detail": "Internal Server Error"}
+
+
+def test_custom_async_exception_handler():
+    async def handler(request: Request, exc: Exception) -> JSONResponse:
+        return JSONResponse({"message": "Custom error"}, status_code=500)
+
+    custom_app = FastAPI()
+    custom_app.add_exception_handler(Exception, handler)
+
+    @custom_app.get("/")
+    def broken_custom():
+        raise RuntimeError("boom")
+
+    client = TestClient(custom_app, raise_server_exceptions=False)
+    response = client.get("/")
+    assert response.status_code == 500, response.text
+    assert response.json() == {"message": "Custom error"}

@@ -4,20 +4,23 @@ import io
 from typing import Any
 
 import tracerite
-from starlette._utils import is_async_callable
-from starlette.concurrency import run_in_threadpool
+from starlette.middleware.errors import (
+    ServerErrorMiddleware as StarletteServerErrorMiddleware,
+)
 from starlette.requests import Request
 from starlette.responses import HTMLResponse, JSONResponse, PlainTextResponse, Response
-from starlette.types import ASGIApp, ExceptionHandler, Message, Receive, Scope, Send
+from starlette.types import ASGIApp, ExceptionHandler
 
 INGRESS = (
     "This page is shown for your guidance because the application is "
     "running in debug mode and has crashed handling this request."
 )
 
-class ServerErrorMiddleware:
+
+class ServerErrorMiddleware(StarletteServerErrorMiddleware):
     """
-    A drop in replacement for Starlette's ServerErrorMiddleware, with TraceRite formatting.
+    A drop in replacement for Starlette's ServerErrorMiddleware, with TraceRite
+    formatting for the error responses.
 
     Handles returning 500 responses when a server error occurs.
 
@@ -36,49 +39,8 @@ class ServerErrorMiddleware:
         debug: bool = False,
         json: bool = False,
     ) -> None:
-        self.app = app
-        self.handler = handler
-        self.debug = debug
+        super().__init__(app, handler=handler, debug=debug)
         self.json = json
-
-    async def __call__(self, scope: Scope, receive: Receive, send: Send) -> None:
-        if scope["type"] != "http":
-            await self.app(scope, receive, send)
-            return
-
-        response_started = False
-
-        async def _send(message: Message) -> None:
-            nonlocal response_started, send
-
-            if message["type"] == "http.response.start":
-                response_started = True
-            await send(message)
-
-        try:
-            await self.app(scope, receive, _send)
-        except Exception as exc:
-            request = Request(scope)
-            if self.debug:
-                # In debug mode, return traceback responses.
-                response = self.debug_response(request, exc)
-            elif self.handler is None:
-                # Use our default 500 error handler.
-                response = self.error_response(request, exc)
-            else:
-                # Use an installed 500 error handler.
-                if is_async_callable(self.handler):
-                    response = await self.handler(request, exc)  # type: ignore[assignment, arg-type]
-                else:
-                    response = await run_in_threadpool(self.handler, request, exc)  # type: ignore[arg-type]
-
-            if not response_started:
-                await response(scope, receive, send)
-
-            # We always continue to raise the exception
-            # This allows servers to log the error, or allows test clients
-            # to optionally raise the error within the test case.
-            raise exc
 
     def generate_html(
         self,

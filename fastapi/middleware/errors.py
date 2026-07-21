@@ -92,10 +92,7 @@ class ServerErrorMiddleware:
     def generate_json(self, exc: Exception) -> dict[str, Any]:
         """Render a structured JSON traceback for the given exception."""
         chain = tracerite.extract_chain(exc)
-        return {
-            "detail": "Internal Server Error",
-            "traceback": chain,
-        }
+        return {"detail": "Internal Server Error", "traceback": chain}
 
     def debug_response(self, request: Request, exc: Exception) -> Response:
         accept = request.headers.get("accept", "")

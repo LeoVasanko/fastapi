@@ -242,3 +242,18 @@ If you want to use the exception along with the same default exception handlers 
 {* ../../docs_src/handling_errors/tutorial006_py310.py hl[2:5,15,21] *}
 
 In this example you are just printing the error with a very expressive message, but you get the idea. You can use the exception and then just reuse the default exception handlers.
+
+## Server errors in debug mode { #server-errors-in-debug-mode }
+
+When an unexpected exception escapes your code, **FastAPI** returns a `500 Internal Server Error` response.
+
+If you create the application with `debug=True`, the error response will instead contain a detailed traceback formatted with [TraceRite](https://github.com/sanic-org/tracerite), including the source code and local variables of the frames involved:
+
+* Clients that accept `text/html` (e.g. browsers) get an interactive HTML page.
+* Other clients get a plain text traceback.
+
+/// warning
+
+Debug mode is intended for local development only. As the error responses include internal details of your code and data, do not enable it in production.
+
+///

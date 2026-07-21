@@ -48,7 +48,12 @@ class ServerErrorMiddleware(StarletteServerErrorMiddleware):
         limit: int = 7,
         request: Request | None = None,
     ) -> str:
-        """Render an HTML traceback page for the given exception."""
+        """Render an HTML traceback page for the given exception.
+
+        ``limit`` is accepted for signature compatibility with Starlette's
+        implementation but is unused: TraceRite determines the relevant
+        context to show internally, so no frame limit is needed.
+        """
         return tracerite.html_page(
             exc,
             title="FastAPI debugger",

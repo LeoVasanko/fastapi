@@ -6,7 +6,14 @@ from starlette._utils import is_async_callable
 from starlette.concurrency import run_in_threadpool
 from starlette.requests import Request
 from starlette.responses import HTMLResponse, JSONResponse, PlainTextResponse, Response
-from starlette.types import ASGIApp, ExceptionHandler, Message, Receive, Scope, Send
+from starlette.types import (
+    ASGIApp,
+    HTTPExceptionHandler,
+    Message,
+    Receive,
+    Scope,
+    Send,
+)
 
 INGRESS = (
     "This page is shown for your guidance because the application is "
@@ -18,7 +25,8 @@ class ServerErrorMiddleware:
     """Return 500 responses when a server error occurs, formatted with TraceRite.
 
     If 'debug' is set, traceback responses are returned, otherwise the
-    designated 'handler' is called.
+    designated 'handler' is called of finally an Internal Server Error
+    message is returned.
 
     This middleware wraps everything else, so that unhandled exceptions
     anywhere in the stack always result in an appropriate 500 response.
@@ -27,7 +35,7 @@ class ServerErrorMiddleware:
     def __init__(
         self,
         app: ASGIApp,
-        handler: ExceptionHandler | None = None,
+        handler: HTTPExceptionHandler | None = None,
         debug: bool = False,
         json: bool = False,
     ) -> None:
@@ -53,14 +61,15 @@ class ServerErrorMiddleware:
             await self.app(scope, receive, _send)
         except Exception as exc:
             request = Request(scope)
+            response: Response
             if self.debug:
                 response = self.debug_response(request, exc)
             elif self.handler is None:
                 response = self.error_response(request, exc)
             elif is_async_callable(self.handler):
-                response = await self.handler(request, exc)  # type: ignore[assignment, arg-type]
+                response = await self.handler(request, exc)  # ty: ignore[invalid-assignment]
             else:
-                response = await run_in_threadpool(self.handler, request, exc)  # type: ignore[arg-type]
+                response = await run_in_threadpool(self.handler, request, exc)  # type: ignore[arg-type]  # ty: ignore[invalid-assignment]
 
             if not response_started:
                 await response(scope, receive, send)

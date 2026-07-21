@@ -120,5 +120,5 @@ class ServerErrorMiddleware:
 
     def error_response(self, request: Request, exc: Exception) -> Response:
         if self.json and "application/json" in request.headers.get("accept", ""):
-            return JSONResponse({"detail": "Internal Server Error"})
+            return JSONResponse({"detail": "Internal Server Error"}, status_code=500)
         return PlainTextResponse("Internal Server Error", status_code=500)

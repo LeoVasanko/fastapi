@@ -52,7 +52,9 @@ For that, use `fallback="index.html"`:
 
 {* ../../docs_src/frontend/tutorial002_py310.py hl[5] *}
 
-**FastAPI** uses this fallback only for requests that look like browser navigation. Missing files like JavaScript, CSS, and images still return `404`.
+**FastAPI** uses this fallback only for `GET` and `HEAD` requests that explicitly accept HTML with `Accept: text/html` or `Accept: application/xhtml+xml`, as browser navigation requests normally do. Missing files like JavaScript, CSS, and images still return `404`.
+
+Requests with other methods, like `POST` or `PUT`, to paths that only match the frontend fallback also return `404`. Regular **FastAPI** *path operations* still have higher priority than frontend routes.
 
 /// tip
 
@@ -104,9 +106,13 @@ Then missing frontend paths return the normal `404`.
 
 ## Check Directory { #check-directory }
 
-By default, `app.frontend()` checks that the directory exists when the app is created.
+By default, `app.frontend()` uses `check_dir="auto"`.
 
-This helps catch configuration errors early. For example, if the frontend build output directory is missing, **FastAPI** will raise an error on startup.
+When the `FASTAPI_ENV` environment variable is set to `development`, **FastAPI** only shows a warning if the frontend build output directory is missing. The [`fastapi dev` command](https://github.com/fastapi/fastapi-cli#fastapi-dev) sets this environment variable for you if it is not already set. This lets you start the backend before building or starting the frontend during development.
+
+In any other environment, **FastAPI** raises an error when the app is created. This helps catch configuration errors early before deploying an app without its frontend files.
+
+You can also set `check_dir=True` to always check the directory when the app is created.
 
 If your frontend files are created later, for example by a separate build step after the app object is created, set `check_dir=False`:
 
@@ -123,6 +129,14 @@ You can also add frontend files to an `APIRouter` and include it with a prefix:
 In this example, frontend paths are served under `/app`.
 
 Any regular *path operations* in the app will still take precedence, including in other routers.
+
+## Dependencies and Middleware { #dependencies-and-middleware }
+
+Frontend responses run inside the normal **FastAPI** application, so HTTP middleware applies to them.
+
+Dependencies from the app, from an `APIRouter`, and from `include_router()` also apply to frontend responses. This can be useful for protecting a frontend with cookie authentication or similar.
+
+Dependencies can also modify response headers and add background tasks, as with normal *path operations*.
 
 ## Static Build Output Only { #static-build-output-only }
 

@@ -81,8 +81,6 @@ nav:
   - learn/index.md
   - python-types.md
   - async.md
-  - environment-variables.md
-  - virtual-environments.md
   - "":
     - tutorial/index.md
     - tutorial/first-steps.md
@@ -214,6 +212,7 @@ nav:
   - reference/httpconnection.md
   - reference/response.md
   - reference/responses.md
+  - reference/sse.md
   - reference/middleware.md
   - "":
     - reference/openapi/index.md
@@ -224,9 +223,9 @@ nav:
   - reference/staticfiles.md
   - reference/templating.md
   - reference/testclient.md
-- fastapi-people.md
 - "":
   - resources/index.md
+  - fastapi-people.md
   - help-fastapi.md
   - contributing.md
   - translations.md
@@ -289,7 +288,7 @@ extra:
   - icon: octicons/mark-github-24
     link: https://github.com/fastapi/fastapi
   - icon: fontawesome/brands/discord
-    link: https://discord.gg/VQjSZaeJmf
+    link: https://discord.com/invite/VQjSZaeJmf
   - icon: fontawesome/brands/x-twitter
     link: https://x.com/fastapi
   - icon: fontawesome/brands/bluesky

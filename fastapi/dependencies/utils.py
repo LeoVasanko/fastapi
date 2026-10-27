@@ -1189,6 +1189,10 @@ async def request_body_to_args(
     if single_not_embedded_field:
         # Skip Pydantic validation if the body field is handled by msgspec.
         if is_struct_body_field(first_field):
+            # A missing body is treated as None, as before the upstream
+            # switch from None to Undefined as the empty-body sentinel.
+            if body_to_process is Undefined:
+                body_to_process = None
             return {first_field.name: body_to_process}, []
         loc: tuple[str, ...] = ("body",)
         v_, errors_ = _validate_value_with_model_field(

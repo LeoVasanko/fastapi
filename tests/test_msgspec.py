@@ -184,8 +184,8 @@ def test_msgspec_openapi_schema() -> None:
                 "price": {"type": "number", "default": 0.0},
                 "address": {
                     "anyOf": [
-                        {"type": "null"},
                         {"$ref": "#/components/schemas/Address"},
+                        {"type": "null"},
                     ]
                 },
             },
@@ -434,7 +434,7 @@ def test_msgspec_bytes_requires_base64() -> None:
     assert response.json()["detail"][0]["type"] == "msgspec_validation"
 
 
-def test_msgspec_enum_keys_encode_limitation() -> None:
+def test_msgspec_enum_keys_roundtrip() -> None:
     from enum import Enum
 
     class Color(Enum):
@@ -444,10 +444,37 @@ def test_msgspec_enum_keys_encode_limitation() -> None:
     class MappedItem(msgspec.Struct):
         mapping: dict[Color, str]
 
-    # msgspec can *decode* JSON string keys into Enum keys, but it cannot
-    # *encode* a dict with Enum keys back to JSON. Pydantic handles this
-    # round-trip; msgspec raises a TypeError during response serialization,
-    # which in FastAPI currently surfaces as an unhandled 500 error.
-    obj = MappedItem(mapping={Color.RED: "r", Color.GREEN: "g"})
+    # Since msgspec 0.22.0, dicts with Enum keys can be encoded as well as
+    # decoded, so the full round-trip through FastAPI works.
+    app = FastAPI()
+
+    @app.get("/mapping", response_model=MappedItem)
+    def get_mapping() -> MappedItem:
+        return MappedItem(mapping={Color.RED: "r", Color.GREEN: "g"})
+
+    client = TestClient(app)
+    response = client.get("/mapping")
+    assert response.status_code == 200
+    assert response.json() == {"mapping": {"red": "r", "green": "g"}}
+
+
+def test_msgspec_unsupported_keys_encode_limitation() -> None:
+    class MappedItem(msgspec.Struct):
+        mapping: dict[tuple[int, int], str]
+
+    # msgspec still cannot *encode* dicts with tuple keys: it raises a
+    # TypeError during response serialization, which in FastAPI surfaces
+    # as an unhandled 500 error.
+    obj = MappedItem(mapping={(1, 2): "a"})
     with pytest.raises(TypeError, match="str-like or number-like keys"):
         msgspec.json.encode(obj)
+
+    app = FastAPI()
+
+    @app.get("/mapping", response_model=MappedItem)
+    def get_mapping() -> MappedItem:
+        return obj
+
+    client = TestClient(app, raise_server_exceptions=False)
+    response = client.get("/mapping")
+    assert response.status_code == 500

@@ -59,7 +59,7 @@ Changelog = "https://fastapi.tiangolo.com/release-notes/"
 
 [project.optional-dependencies]
 msgspec = [
-    "msgspec>=0.18.0",
+    "msgspec>=0.22.0",
 ]
 
 opentelemetry = [
@@ -133,7 +133,7 @@ all = [
     # Extra Pydantic data types
     "pydantic-extra-types >=2.0.0",
     # msgspec support
-    "msgspec>=0.18.0",
+    "msgspec>=0.22.0",
 ]
 
 [project.scripts]
@@ -191,7 +191,7 @@ tests = [
     "flask >=3.0.0,<4.0.0",
     "inline-snapshot >=0.21.1",
     "mypy >=1.14.1",
-    "msgspec>=0.18.0",
+    "msgspec>=0.22.0",
     "pwdlib[argon2] >=0.2.1",
     "pyjwt >=2.9.0",
     "pytest >=9.0.0",
